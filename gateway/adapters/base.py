@@ -89,5 +89,11 @@ def resolve_group_id(platform: str, source_info: Dict[str, Any]) -> str:
         return f"discord:channel:{source_info.get('channel_id', '')}"
     elif platform == "slack":
         return f"slack:channel:{source_info.get('channel_id', '')}"
+    elif platform == "feishu":
+        return f"feishu:chat:{source_info.get('chat_id', '')}"
+    elif platform == "dingtalk":
+        return f"dingtalk:conversation:{source_info.get('conversation_id', '')}"
+    elif platform == "wecom":
+        return f"wecom:chat:{source_info.get('chat_id', '')}"
     else:
         return f"{platform}:{source_info.get('id', source_info.get('chat_id', ''))}"

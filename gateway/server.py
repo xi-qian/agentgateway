@@ -26,6 +26,9 @@ logger = logging.getLogger("gateway.server")
 ADAPTER_REGISTRY = {
     "mock": "gateway.adapters.mock:MockAdapter",
     "telegram": "gateway.adapters.telegram:TelegramAdapter",
+    "feishu": "gateway.adapters.feishu:FeishuAdapter",
+    "dingtalk": "gateway.adapters.dingtalk:DingTalkAdapter",
+    "wecom": "gateway.adapters.wecom:WeComAdapter",
 }
 
 

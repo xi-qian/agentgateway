@@ -126,10 +126,17 @@ class TestManagerDaemonIntegration(AioHTTPTestCase):
 
         # Close the WebSocket to simulate daemon disconnect
         await ws.close()
-        await asyncio.sleep(0.2)
 
-        resp = await self.client.get("/api/v1/servers")
-        data = await resp.json()
+        # Poll until server status becomes "lost" (avoid fixed-sleep flakiness)
+        for _ in range(20):
+            await asyncio.sleep(0.05)
+            resp = await self.client.get("/api/v1/servers")
+            data = await resp.json()
+            if data["servers"] and data["servers"][0]["status"] == "lost":
+                break
+        else:
+            resp = await self.client.get("/api/v1/servers")
+            data = await resp.json()
         assert data["servers"][0]["status"] == "lost"
 
     @unittest_run_loop

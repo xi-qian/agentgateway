@@ -1,5 +1,6 @@
 """Tests for platform adapter interface, mock adapter, Telegram adapter, and server integration."""
 import asyncio
+import json
 import pytest
 from gateway.adapters.base import PlatformAdapter, AdapterMessageEvent, resolve_group_id
 from gateway.adapters.mock import MockAdapter
@@ -114,6 +115,18 @@ class TestGroupIDResolution:
         group_id = resolve_group_id("slack", {"channel_id": "C01ABCDE"})
         assert group_id == "slack:channel:C01ABCDE"
 
+    def test_resolve_feishu(self):
+        group_id = resolve_group_id("feishu", {"chat_id": "oc_abc123"})
+        assert group_id == "feishu:chat:oc_abc123"
+
+    def test_resolve_dingtalk(self):
+        group_id = resolve_group_id("dingtalk", {"conversation_id": "cid123"})
+        assert group_id == "dingtalk:conversation:cid123"
+
+    def test_resolve_wecom(self):
+        group_id = resolve_group_id("wecom", {"chat_id": "userId123"})
+        assert group_id == "wecom:chat:userId123"
+
     def test_resolve_unknown_with_id(self):
         group_id = resolve_group_id("unknown", {"id": "123"})
         assert group_id == "unknown:123"
@@ -177,3 +190,144 @@ class TestAdapterServerIntegration:
         config = {"adapters": {"nonexistent": {"enabled": True}}}
         adapters = load_adapters_from_config(config)
         assert adapters == []
+
+
+class TestDingTalkAdapter:
+    def test_dingtalk_adapter_properties(self):
+        from gateway.adapters.dingtalk import DingTalkAdapter
+        adapter = DingTalkAdapter()
+        assert adapter.name == "dingtalk"
+        assert adapter.platform == "dingtalk"
+
+    def test_dingtalk_adapter_config(self):
+        from gateway.adapters.dingtalk import DingTalkAdapter
+        adapter = DingTalkAdapter({
+            "client_id": "test_id",
+            "client_secret": "test_secret",
+        })
+        assert adapter._client_id == "test_id"
+        assert adapter._client_secret == "test_secret"
+
+    @pytest.mark.asyncio
+    async def test_dingtalk_start_fails_without_deps(self):
+        from gateway.adapters.dingtalk import DingTalkAdapter
+        adapter = DingTalkAdapter({
+            "client_id": "test_id",
+            "client_secret": "test_secret",
+        })
+        started = await adapter.start()
+        assert started is False
+
+    def test_check_requirements(self):
+        from gateway.adapters.dingtalk import DingTalkAdapter
+        assert isinstance(DingTalkAdapter.check_requirements(), bool)
+
+
+class TestWeComAdapter:
+    def test_wecom_adapter_properties(self):
+        from gateway.adapters.wecom import WeComAdapter
+        adapter = WeComAdapter()
+        assert adapter.name == "wecom"
+        assert adapter.platform == "wecom"
+
+    def test_wecom_adapter_config(self):
+        from gateway.adapters.wecom import WeComAdapter
+        adapter = WeComAdapter({
+            "bot_id": "test_bot",
+            "secret": "test_secret",
+        })
+        assert adapter._bot_id == "test_bot"
+        assert adapter._secret == "test_secret"
+
+    @pytest.mark.asyncio
+    async def test_wecom_start_fails_without_creds(self):
+        from gateway.adapters.wecom import WeComAdapter
+        adapter = WeComAdapter({"bot_id": "", "secret": ""})
+        started = await adapter.start()
+        assert started is False
+
+    def test_check_requirements(self):
+        from gateway.adapters.wecom import WeComAdapter
+        assert isinstance(WeComAdapter.check_requirements(), bool)
+
+
+class TestFeishuAdapter:
+    def test_feishu_adapter_properties(self):
+        from gateway.adapters.feishu import FeishuAdapter
+        adapter = FeishuAdapter()
+        assert adapter.name == "feishu"
+        assert adapter.platform == "feishu"
+
+    def test_feishu_adapter_config(self):
+        from gateway.adapters.feishu import FeishuAdapter
+        adapter = FeishuAdapter({
+            "app_id": "cli_test",
+            "app_secret": "secret_test",
+        })
+        assert adapter._app_id == "cli_test"
+        assert adapter._app_secret == "secret_test"
+
+    @pytest.mark.asyncio
+    async def test_feishu_start_fails_without_deps(self):
+        from gateway.adapters.feishu import FeishuAdapter
+        adapter = FeishuAdapter({
+            "app_id": "cli_test",
+            "app_secret": "secret_test",
+        })
+        started = await adapter.start()
+        assert started is False
+
+    def test_check_requirements(self):
+        from gateway.adapters.feishu import FeishuAdapter
+        assert isinstance(FeishuAdapter.check_requirements(), bool)
+
+    def test_feishu_post_parsing(self):
+        from gateway.adapters.feishu import parse_feishu_post_content
+        raw = json.dumps({
+            "zh_cn": {
+                "title": "Hello",
+                "content": [
+                    [{"tag": "text", "text": "world"}]
+                ]
+            }
+        })
+        result = parse_feishu_post_content(raw)
+        assert "Hello" in result.text_content
+        assert "world" in result.text_content
+
+    def test_feishu_message_normalization_text(self):
+        from gateway.adapters.feishu import normalize_feishu_message
+        msg = normalize_feishu_message(message_type="text", raw_content='{"text": "hello"}')
+        assert msg.text_content == "hello"
+        assert msg.raw_type == "text"
+
+
+class TestAdapterRegistryIntegration:
+    """Test that new adapters are registered and loadable."""
+
+    def test_registry_contains_china_adapters(self):
+        from gateway.server import ADAPTER_REGISTRY
+        assert "feishu" in ADAPTER_REGISTRY
+        assert "dingtalk" in ADAPTER_REGISTRY
+        assert "wecom" in ADAPTER_REGISTRY
+
+    def test_load_feishu_adapter(self):
+        from gateway.server import load_adapters_from_config
+        config = {"adapters": {"feishu": {"enabled": True, "app_id": "x", "app_secret": "y"}}}
+        adapters = load_adapters_from_config(config)
+        assert len(adapters) == 1
+        assert adapters[0].name == "feishu"
+
+    def test_load_dingtalk_adapter(self):
+        from gateway.server import load_adapters_from_config
+        config = {"adapters": {"dingtalk": {"enabled": True, "client_id": "x", "client_secret": "y"}}}
+        adapters = load_adapters_from_config(config)
+        assert len(adapters) == 1
+        assert adapters[0].name == "dingtalk"
+
+    def test_load_wecom_adapter(self):
+        from gateway.server import load_adapters_from_config
+        config = {"adapters": {"wecom": {"enabled": True, "bot_id": "x", "secret": "y"}}}
+        adapters = load_adapters_from_config(config)
+        assert len(adapters) == 1
+        assert adapters[0].name == "wecom"

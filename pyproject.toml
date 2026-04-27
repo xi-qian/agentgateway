@@ -18,6 +18,10 @@ dev = [
     "pytest-asyncio>=0.21",
     "pytest-xdist>=3.0",
 ]
+feishu = ["lark_oapi>=1.0", "websockets>=10.0"]
+dingtalk = ["dingtalk-stream>=1.0", "httpx>=0.24"]
+wecom = ["httpx>=0.24"]
+all-china = ["lark_oapi>=1.0", "websockets>=10.0", "dingtalk-stream>=1.0", "httpx>=0.24"]
 
 [project.entry-points."hermes_agent.plugins"]
 hermes-distributed = "agent.plugin"
