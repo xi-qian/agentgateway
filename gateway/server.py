@@ -33,13 +33,42 @@ ADAPTER_REGISTRY = {
 
 
 def load_adapters_from_config(config: dict) -> list:
-    """Load enabled adapters from config.
+    """Load enabled adapters from config or GW_ADAPTERS_CONFIG env var.
 
-    Reads config["adapters"] dict where each key is an adapter name
-    with an "enabled" flag. Uses ADAPTER_REGISTRY to resolve module paths.
+    Supports two sources:
+    1. config["adapters"] dict (from YAML): each key is an adapter name
+       with an "enabled" flag.
+    2. GW_ADAPTERS_CONFIG env var: JSON string like
+       '{"feishu": {"app_id": "x", "app_secret": "y"}, "mock": {}}'.
+       Adapters listed here are auto-enabled (no "enabled" key needed).
+
+    Env var takes precedence if both are present.
     """
+    import json
+    import os
+
     adapters = []
-    adapter_configs = config.get("adapters", {})
+
+    # Check GW_ADAPTERS_CONFIG env var first
+    env_config = os.environ.get("GW_ADAPTERS_CONFIG", "").strip()
+    if env_config:
+        try:
+            adapter_configs = json.loads(env_config)
+            if not isinstance(adapter_configs, dict):
+                logger.warning("GW_ADAPTERS_CONFIG must be a JSON object")
+                adapter_configs = {}
+            else:
+                # Auto-enable all adapters from env var
+                adapter_configs = {
+                    name: dict(cfg, enabled=True) if isinstance(cfg, dict) else {"enabled": True}
+                    for name, cfg in adapter_configs.items()
+                }
+        except json.JSONDecodeError as e:
+            logger.warning("GW_ADAPTERS_CONFIG is not valid JSON: %s", e)
+            adapter_configs = config.get("adapters", {})
+    else:
+        adapter_configs = config.get("adapters", {})
+
     for name, cfg in adapter_configs.items():
         if not cfg.get("enabled", False):
             continue

@@ -523,6 +523,30 @@ async def _handle_start(
 
 
 # ---------------------------------------------------------------------------
+# Dynamic Hermes installation
+# ---------------------------------------------------------------------------
+
+
+def _install_hermes(source: str) -> None:
+    """Install Hermes Agent from a pip source.
+
+    Args:
+        source: A pip-installable target. Can be:
+            - Local path: /hermes or ./hermes-agent
+            - Git URL: git+https://github.com/user/hermes-agent.git
+            - PyPI package: hermes-agent or hermes-agent==1.0
+    """
+    logger.info("Installing Hermes from: %s", source)
+    cmd = [sys.executable, "-m", "pip", "install", "--quiet", source]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if result.returncode != 0:
+        logger.error("Failed to install Hermes from %s:\nstdout: %s\nstderr: %s",
+                      source, result.stdout, result.stderr)
+        raise RuntimeError(f"pip install failed (exit code {result.returncode})")
+    logger.info("Hermes installed successfully from: %s", source)
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -532,20 +556,20 @@ def main() -> None:
         description="Hermes Distributed Agent Daemon",
     )
     parser.add_argument(
-        "--manager-url", required=True,
-        help="Manager WebSocket URL (ws://host:port/ws)",
+        "--manager-url", default="",
+        help="Manager WebSocket URL (ws://host:port/ws), or DA_MANAGER_URL env var",
     )
     parser.add_argument(
-        "--server-id", required=True,
-        help="Unique server ID for this agent server",
+        "--server-id", default="",
+        help="Unique server ID, or DA_SERVER_ID env var",
     )
     parser.add_argument(
         "--hermes-root", default="",
         help="Root directory of the Hermes installation",
     )
     parser.add_argument(
-        "--heartbeat-interval", type=int, default=30,
-        help="Heartbeat interval in seconds (default: 30)",
+        "--heartbeat-interval", type=int, default=0,
+        help="Heartbeat interval in seconds, or DA_HEARTBEAT_INTERVAL env var (default: 30)",
     )
     args = parser.parse_args()
 
@@ -554,14 +578,30 @@ def main() -> None:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    if args.hermes_root:
-        os.environ["HERMES_ROOT"] = args.hermes_root
+    # Resolve from env vars if CLI args not provided
+    manager_url = args.manager_url or os.environ.get("DA_MANAGER_URL", "")
+    server_id = args.server_id or os.environ.get("DA_SERVER_ID", "")
+    heartbeat_interval = args.heartbeat_interval or int(
+        os.environ.get("DA_HEARTBEAT_INTERVAL", "30")
+    )
+
+    if not manager_url or not server_id:
+        parser.error("--manager-url (or DA_MANAGER_URL) and --server-id (or DA_SERVER_ID) are required")
+
+    # Dynamic Hermes installation
+    pip_source = os.environ.get("DA_HERMES_PIP_SOURCE", "").strip()
+    if pip_source:
+        _install_hermes(pip_source)
+
+    hermes_root = args.hermes_root or os.environ.get("DA_HERMES_ROOT", "")
+    if hermes_root:
+        os.environ["HERMES_ROOT"] = hermes_root
 
     asyncio.run(run_daemon(
-        manager_url=args.manager_url,
-        server_id=args.server_id,
-        hermes_root=args.hermes_root,
-        heartbeat_interval=args.heartbeat_interval,
+        manager_url=manager_url,
+        server_id=server_id,
+        hermes_root=hermes_root,
+        heartbeat_interval=heartbeat_interval,
     ))
 
 
