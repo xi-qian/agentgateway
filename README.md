@@ -1,6 +1,6 @@
-# Hermes Distributed
+# AgentGateway
 
-Distributed architecture for Hermes Agent: Gateway (message routing) + Agent Service (execution) + Manager (lifecycle management).
+Distributed agent service infrastructure: Gateway (message routing) + Agent Service (execution) + Manager (lifecycle management) + Daemon (process manager). Decoupled from any specific AI agent framework — connects to Hermes Agent via plugin.
 
 ## Phase 1: Gateway + Agent Service
 
