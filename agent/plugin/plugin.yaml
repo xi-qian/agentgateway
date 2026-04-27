@@ -1,0 +1,6 @@
+name: hermes-distributed
+version: "0.1.0"
+description: "Connect Hermes Gateway to distributed Gateway via WebSocket"
+author: "Hermes Distributed"
+provides_hooks: []
+provides_tools: []
