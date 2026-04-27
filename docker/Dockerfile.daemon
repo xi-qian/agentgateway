@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+
+RUN pip install --no-cache-dir -i ${PIP_INDEX} \
+    "aiohttp>=3.9.0" "pyyaml>=6.0"
+
+COPY gateway/message_types.py gateway/message_types.py
+COPY gateway/__init__.py gateway/__init__.py
+COPY agent/ agent/
+
+VOLUME /root/.hermes
+
+ENV PYTHONPATH=/app
+
+CMD ["python3", "-m", "agent.daemon"]

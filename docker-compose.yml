@@ -1,0 +1,57 @@
+# Development / Test environment — all services on one host
+#
+# Usage:
+#   docker-compose up -d
+#   docker-compose logs -f gateway
+#   docker-compose down
+#
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    ports:
+      - "8900:8900"
+    environment:
+      GW_MANAGER_URL: http://manager:8800
+      GW_ADAPTERS_CONFIG: '{"mock": {"enabled": true}}'
+    depends_on:
+      - manager
+    networks:
+      - agentgateway-net
+
+  manager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.manager
+    ports:
+      - "8800:8800"
+    volumes:
+      - manager-data:/data
+    environment:
+      MG_DB_PATH: /data/manager.db
+    networks:
+      - agentgateway-net
+
+  daemon:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.daemon
+    volumes:
+      - hermes-home:/root/.hermes
+    environment:
+      DA_MANAGER_URL: ws://manager:8800/ws
+      DA_SERVER_ID: dev-server-1
+      DA_GATEWAY_URL: ws://gateway:8900/ws
+    depends_on:
+      - gateway
+      - manager
+    networks:
+      - agentgateway-net
+
+volumes:
+  manager-data:
+  hermes-home:
+
+networks:
+  agentgateway-net:

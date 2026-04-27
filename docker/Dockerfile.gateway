@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
+
+# Install runtime dependencies
+RUN pip install --no-cache-dir -i ${PIP_INDEX} \
+    "aiohttp>=3.9.0" "pyyaml>=6.0"
+
+# Copy source
+COPY gateway/ gateway/
+COPY agent/ agent/
+COPY manager/ manager/
+
+# Install optional platform dependencies (add/remove as needed)
+RUN pip install --no-cache-dir -i ${PIP_INDEX} \
+    lark_oapi httpx websockets || true
+
+EXPOSE 8900
+
+ENV PYTHONPATH=/app
+
+CMD ["python3", "-m", "gateway.server"]

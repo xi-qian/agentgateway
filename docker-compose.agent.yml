@@ -1,0 +1,23 @@
+# Production — Agent server (Daemon)
+#
+# Usage:
+#   DA_SERVER_ID=agent-1 CORE_SERVER=core.example.com docker-compose -f docker-compose.agent.yml up -d
+#
+services:
+  daemon:
+    image: agentgateway-daemon:latest
+    volumes:
+      - hermes-home:/root/.hermes
+      - agent-logs:/logs
+    environment:
+      DA_MANAGER_URL: ws://${CORE_SERVER:-localhost}:8800/ws
+      DA_SERVER_ID: ${DA_SERVER_ID:-agent-1}
+      DA_HERMES_PIP_SOURCE: ${DA_HERMES_PIP_SOURCE:-}
+      DA_HERMES_HOME: /root/.hermes
+      DA_GATEWAY_URL: ws://${CORE_SERVER:-localhost}:8900/ws
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    restart: always
+
+volumes:
+  hermes-home:
+  agent-logs:

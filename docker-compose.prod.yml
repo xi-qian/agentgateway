@@ -1,0 +1,40 @@
+# Production — Core server (Gateway + Manager)
+#
+# Usage:
+#   docker-compose -f docker-compose.prod.yml up -d
+#
+# Requires .env file with: GW_ADAPTERS_CONFIG, ANTHROPIC_API_KEY, etc.
+#
+services:
+  gateway:
+    image: agentgateway-gateway:latest
+    ports:
+      - "8900:8900"
+    environment:
+      GW_MANAGER_URL: http://manager:8800
+      GW_ADAPTERS_CONFIG: ${GW_ADAPTERS_CONFIG:-{}}
+    restart: always
+    depends_on:
+      - manager
+    networks:
+      - agentgateway-net
+
+  manager:
+    image: agentgateway-manager:latest
+    ports:
+      - "8800:8800"
+    volumes:
+      - manager-data:/data
+    environment:
+      MG_DB_PATH: /data/manager.db
+      MG_IDLE_TIMEOUT: ${MG_IDLE_TIMEOUT:-1800}
+      MG_HEALTH_TIMEOUT: ${MG_HEALTH_TIMEOUT:-90}
+    restart: always
+    networks:
+      - agentgateway-net
+
+volumes:
+  manager-data:
+
+networks:
+  agentgateway-net:
