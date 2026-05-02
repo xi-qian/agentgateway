@@ -67,6 +67,7 @@ class Router:
         if ws is not None:
             try:
                 await ws.send_json(task_dict)
+                logger.info("Task sent to agent %s", group_id)
                 return True
             except Exception as e:
                 logger.error("Failed to send task to agent %s: %s", group_id, e)

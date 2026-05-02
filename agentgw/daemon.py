@@ -19,13 +19,14 @@ import platform
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO
 
 import aiohttp
 
 from gateway.message_types import PROTOCOL_VERSION
 
-logger = logging.getLogger("agent.daemon")
+logger = logging.getLogger("agentgw.daemon")
 
 # ---------------------------------------------------------------------------
 # Message builders
@@ -152,23 +153,63 @@ async def start_child_process(
     """Launch an agent_service child process and wire up stdout/stderr/monitor."""
     from gateway.message_types import AgentStartedMessage
 
-    cmd = [sys.executable, "-m", "agent.agent_service"]
+    # Create profile directory with default Hermes config if it doesn't exist
+    if hermes_home:
+        profile_dir = Path(hermes_home)
+        profile_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create config.yaml if not exists
+        config_file = profile_dir / "config.yaml"
+        if not config_file.exists():
+            # Copy from default config or create minimal config
+            default_config_path = Path.home() / ".hermes" / "config.yaml"
+            if default_config_path.exists():
+                import shutil
+                shutil.copy(default_config_path, config_file)
+            else:
+                # Create minimal config with custom provider
+                config_file.write_text(f"""model:
+  provider: custom
+  base_url: "{os.environ.get('OPENAI_BASE_URL', 'https://api.deepseek.com')}"
+  default: {os.environ.get('HERMES_MODEL', 'deepseek-chat')}
+""")
+            logger.info("Created profile config: %s", config_file)
+
+        # Create .env if not exists
+        env_file = profile_dir / ".env"
+        if not env_file.exists():
+            default_env_path = Path.home() / ".hermes" / ".env"
+            if default_env_path.exists():
+                import shutil
+                shutil.copy(default_env_path, env_file)
+            else:
+                # Create minimal .env with API key
+                env_file.write_text(f"""OPENAI_API_KEY={os.environ.get('OPENAI_API_KEY', '')}
+OPENAI_BASE_URL={os.environ.get('OPENAI_BASE_URL', '')}
+""")
+            logger.info("Created profile .env: %s", env_file)
+
+    cmd = [sys.executable, "-m", "agentgw.agent_service"]
     cmd.extend([
         "--gateway-url", gateway_url,
         "--group-id", group_id,
     ])
     if profile:
         cmd.extend(["--profile", profile])
-    if hermes_home:
-        cmd.extend(["--hermes-home", hermes_home])
+    # Always pass hermes_home to ensure correct config path
+    hermes_home_path = hermes_home or os.environ.get("HERMES_HOME", "") or str(Path.home() / ".hermes")
+    cmd.extend(["--hermes-home", hermes_home_path])
     if model:
         cmd.extend(["--model", model])
 
     env = os.environ.copy()
     if hermes_root:
         env["HERMES_ROOT"] = hermes_root
+    # Always ensure HERMES_HOME is set for child process
     if hermes_home:
         env["HERMES_HOME"] = hermes_home
+    elif "HERMES_HOME" not in env or not env["HERMES_HOME"]:
+        env["HERMES_HOME"] = str(Path.home() / ".hermes")
 
     logger.info("Launching child process: %s", " ".join(cmd))
     proc = subprocess.Popen(

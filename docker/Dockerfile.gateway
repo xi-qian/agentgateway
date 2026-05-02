@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -i ${PIP_INDEX} \
 
 # Copy source
 COPY gateway/ gateway/
-COPY agent/ agent/
+COPY agentgw/ agentgw/
 COPY manager/ manager/
 
 # Install optional platform dependencies (add/remove as needed)

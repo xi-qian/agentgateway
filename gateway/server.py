@@ -109,6 +109,48 @@ class GatewayServer:
         else:
             self._manager_client = None
 
+    async def _on_platform_message(self, event) -> None:
+        """Handle a message from a platform adapter and dispatch to agent."""
+        from gateway.message_types import TaskMessage
+        from gateway.adapters.base import AdapterMessageEvent
+
+        if not isinstance(event, AdapterMessageEvent):
+            logger.warning("Unexpected event type: %s", type(event))
+            return
+
+        task = TaskMessage(
+            group_id=event.group_id,
+            message=event.text,
+            sender={
+                "user_id": event.sender_id,
+                "user_name": event.sender_name,
+                "platform": event.platform,
+            },
+            media=[],
+            reply_to_message_id=event.reply_to_message_id,
+            reply_to_text=event.reply_to_text,
+        )
+
+        logger.info("Dispatching task from %s to group_id=%s", event.platform, event.group_id)
+        await self.router.dispatch_task(event.group_id, task.to_dict())
+
+    def _setup_adapter_handlers(self) -> None:
+        """Set up message handlers for all loaded adapters."""
+        for adapter in self._adapters:
+            adapter.on_message = self._on_platform_message
+
+    def _find_adapter_for_platform(self, platform: str) -> Optional[Any]:
+        """Find the adapter that handles the given platform prefix."""
+        for adapter in self._adapters:
+            adapter_name = adapter.__class__.__name__.lower().replace("adapter", "")
+            if adapter_name == platform or adapter_name.startswith(platform):
+                return adapter
+        # Fallback: check adapter's platform attribute
+        for adapter in self._adapters:
+            if hasattr(adapter, 'platform') and adapter.platform == platform:
+                return adapter
+        return None
+
     async def _ws_handler(self, request: web.Request) -> web.WebSocketResponse:
         """Handle an incoming WebSocket connection from an agent."""
         ws = web.WebSocketResponse(
@@ -149,6 +191,17 @@ class GatewayServer:
             msg.model,
             msg.toolsets,
         )
+
+        # Register response handler to send replies back to platform
+        platform_prefix = msg.group_id.split(":")[0] if ":" in msg.group_id else ""
+        adapter = self._find_adapter_for_platform(platform_prefix)
+        if adapter:
+            async def _response_handler(msg):
+                if hasattr(msg, 'final_response'):
+                    await adapter.send_response(msg.group_id, msg.final_response)
+                elif hasattr(msg, 'token'):
+                    await adapter.send_edit(msg.group_id, msg.token)
+            self.bridge.register_response_handler(msg.group_id, _response_handler)
 
         # Drain any pending tasks
         await self.bridge.on_agent_connected(msg.group_id)
@@ -262,9 +315,31 @@ def main():
     if args.port:
         config.ws_port = args.port
 
+    # Load adapters from config
+    import yaml
+    config_data = {}
+    if args.config:
+        from pathlib import Path
+        p = Path(args.config)
+        if p.exists():
+            with open(p) as f:
+                config_data = yaml.safe_load(f) or {}
+    adapters = load_adapters_from_config(config_data)
+
     server = GatewayServer(config)
+    server._adapters = adapters
+    server._setup_adapter_handlers()
 
     async def _run():
+        # Start adapters
+        for adapter in adapters:
+            try:
+                if hasattr(adapter, 'start'):
+                    await adapter.start()
+                    logger.info("Started adapter: %s", adapter.__class__.__name__)
+            except Exception as e:
+                logger.error("Failed to start adapter %s: %s", adapter.__class__.__name__, e)
+
         await server.start()
         try:
             while True:
@@ -272,6 +347,13 @@ def main():
         except asyncio.CancelledError:
             pass
         finally:
+            # Stop adapters
+            for adapter in adapters:
+                try:
+                    if hasattr(adapter, 'stop'):
+                        await adapter.stop()
+                except Exception as e:
+                    logger.error("Failed to stop adapter %s: %s", adapter.__class__.__name__, e)
             await server.stop()
 
     asyncio.run(_run())

@@ -4,15 +4,23 @@ WORKDIR /app
 
 ARG PIP_INDEX=https://pypi.tuna.tsinghua.edu.cn/simple
 
+# Install git for pip install from git URLs
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir -i ${PIP_INDEX} \
     "aiohttp>=3.9.0" "pyyaml>=6.0"
 
 COPY gateway/message_types.py gateway/message_types.py
 COPY gateway/__init__.py gateway/__init__.py
-COPY agent/ agent/
+COPY agentgw/ agentgw/
+COPY docker/entrypoint-daemon.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
 
 VOLUME /root/.hermes
 
 ENV PYTHONPATH=/app
+ENV HERMES_HOME=/root/.hermes
 
-CMD ["python3", "-m", "agent.daemon"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python3", "-m", "agentgw.daemon"]

@@ -18,7 +18,7 @@ def register(ctx) -> None:
             extra = getattr(config, "extra", {}) or {}
             if extra.get("hermes_distributed_gateway_url"):
                 try:
-                    from agent.plugin.ws_adapter import InternalWSAdapter
+                    from agentgw.plugin.ws_adapter import InternalWSAdapter
                     return InternalWSAdapter(config)
                 except Exception as e:
                     import logging

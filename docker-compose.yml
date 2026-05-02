@@ -14,7 +14,7 @@ services:
       - "8900:8900"
     environment:
       GW_MANAGER_URL: http://manager:8800
-      GW_ADAPTERS_CONFIG: '{"mock": {"enabled": true}}'
+      GW_ADAPTERS_CONFIG: '{"feishu": {"enabled": true, "app_id": "cli_a936a6601e0a9bd7", "app_secret": "75snJ95xxdxycXL4EbWnYE5nBuCMsIxx", "connection_mode": "websocket", "domain": "feishu"}}'
     depends_on:
       - manager
     networks:
@@ -30,6 +30,7 @@ services:
       - manager-data:/data
     environment:
       MG_DB_PATH: /data/manager.db
+      MG_GATEWAY_URL: ws://gateway:8900/ws
     networks:
       - agentgateway-net
 
@@ -43,6 +44,10 @@ services:
       DA_MANAGER_URL: ws://manager:8800/ws
       DA_SERVER_ID: dev-server-1
       DA_GATEWAY_URL: ws://gateway:8900/ws
+      DA_HERMES_PIP_SOURCE: ${DA_HERMES_PIP_SOURCE:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      HERMES_MODEL: ${HERMES_MODEL:-deepseek-chat}
     depends_on:
       - gateway
       - manager

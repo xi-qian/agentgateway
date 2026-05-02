@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Dict, Optional
 
 from aiohttp import web
@@ -94,15 +95,19 @@ class ManagerServer:
         # Send start_agent to the daemon via WebSocket
         ws = self._daemon_ws.get(server_id)
         if ws is not None and not ws.closed:
+            # Generate a unique profile directory per group_id for isolation
+            # Each agent gets its own HERMES_HOME with separate config, .env, sessions
+            base_hermes_root = os.environ.get("HERMES_ROOT", "/root/.hermes")
+            hermes_home_path = f"{base_hermes_root}/profiles/{group_id}"
             msg = StartAgentMessage(
                 group_id=group_id,
                 profile=profile,
                 gateway_url=self.config.gateway_url or "",
-                hermes_home="",
+                hermes_home=hermes_home_path,
                 model=model,
             )
             await ws.send_str(json.dumps(msg.to_dict()))
-            logger.info("Sent start_agent for %s to server %s", group_id, server_id)
+            logger.info("Sent start_agent for %s to server %s (profile: %s)", group_id, server_id, hermes_home_path)
         else:
             logger.warning(
                 "No WebSocket connection to server %s, start_agent not sent",

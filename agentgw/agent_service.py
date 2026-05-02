@@ -24,7 +24,7 @@ HERMES_ROOT = os.environ.get("HERMES_ROOT", "")
 if HERMES_ROOT and HERMES_ROOT not in sys.path:
     sys.path.insert(0, HERMES_ROOT)
 
-logger = logging.getLogger("agent.service")
+logger = logging.getLogger("agentgw.service")
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +305,7 @@ async def handle_task(
     """Run the Hermes AIAgent in a thread pool executor for a single task."""
     from gateway.message_types import CompleteMessage, ErrorMessage
 
-    logger.info("Processing task: %s", task.message[:100])
+    logger.info("Received task: %s (message: %s)", group_id, task.message[:100] if task.message else "")
     loop = asyncio.get_running_loop()
 
     def _run_agent() -> None:
@@ -319,22 +319,26 @@ async def handle_task(
             from hermes_state import SessionDB
 
             session_db = SessionDB()
-            config = {}
+            model = os.environ.get("HERMES_MODEL", "deepseek-chat")
             try:
                 from hermes_cli.config import load_config as load_hermes_config
-                config = load_hermes_config() or {}
+                hermes_config = load_hermes_config() or {}
+                model_cfg = hermes_config.get("model", {})
+                # model_cfg can be a string (model name) or a dict with 'default' key
+                if isinstance(model_cfg, dict):
+                    model = model_cfg.get("default") or model_cfg.get("name") or model
+                elif isinstance(model_cfg, str) and model_cfg:
+                    model = model_cfg
             except Exception:
                 pass
 
-            model = config.get("model", "anthropic/claude-sonnet-4-20250514")
             agent = AIAgent(
                 model=model,
-                config=config,
                 session_db=session_db,
                 stream_delta_callback=stream_callback,
             )
             result = agent.run_conversation(
-                message=task.message,
+                user_message=task.message,
             )
             if not result or not hasattr(result, "get"):
                 result = {}
