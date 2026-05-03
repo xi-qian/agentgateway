@@ -48,6 +48,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       HERMES_MODEL: ${HERMES_MODEL:-deepseek-chat}
+      # Feishu credentials for Hermes tools (create docs, send messages, etc.)
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_DOMAIN: ${FEISHU_DOMAIN:-feishu}
     depends_on:
       - gateway
       - manager

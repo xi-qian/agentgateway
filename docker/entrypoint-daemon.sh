@@ -18,12 +18,21 @@ EOF
     echo "Created Hermes config.yaml with custom provider: $OPENAI_BASE_URL"
 fi
 
-# Create .env file with API key
+# Create .env file with API key and platform credentials
 if [ -n "$OPENAI_API_KEY" ]; then
     cat > "$ENV_FILE" << EOF
 OPENAI_API_KEY=${OPENAI_API_KEY}
 OPENAI_BASE_URL=${OPENAI_BASE_URL}
 EOF
+    # Add Feishu credentials for Hermes tools (create docs, send messages, etc.)
+    if [ -n "$FEISHU_APP_ID" ]; then
+        cat >> "$ENV_FILE" << EOF
+FEISHU_APP_ID=${FEISHU_APP_ID}
+FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
+FEISHU_DOMAIN=${FEISHU_DOMAIN:-feishu}
+EOF
+        echo "Added Feishu credentials to .env"
+    fi
     echo "Created Hermes .env with API key"
 fi
 

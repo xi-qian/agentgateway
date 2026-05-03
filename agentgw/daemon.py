@@ -183,10 +183,18 @@ async def start_child_process(
                 import shutil
                 shutil.copy(default_env_path, env_file)
             else:
-                # Create minimal .env with API key
-                env_file.write_text(f"""OPENAI_API_KEY={os.environ.get('OPENAI_API_KEY', '')}
+                # Create minimal .env with API key and platform credentials
+                env_content = f"""OPENAI_API_KEY={os.environ.get('OPENAI_API_KEY', '')}
 OPENAI_BASE_URL={os.environ.get('OPENAI_BASE_URL', '')}
-""")
+"""
+                # Add Feishu credentials for Hermes tools
+                feishu_app_id = os.environ.get('FEISHU_APP_ID', '')
+                if feishu_app_id:
+                    env_content += f"""FEISHU_APP_ID={feishu_app_id}
+FEISHU_APP_SECRET={os.environ.get('FEISHU_APP_SECRET', '')}
+FEISHU_DOMAIN={os.environ.get('FEISHU_DOMAIN', 'feishu')}
+"""
+                env_file.write_text(env_content)
             logger.info("Created profile .env: %s", env_file)
 
     cmd = [sys.executable, "-m", "agentgw.agent_service"]

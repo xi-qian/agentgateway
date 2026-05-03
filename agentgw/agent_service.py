@@ -135,7 +135,7 @@ async def run_agent_service(
     Reconnects with exponential backoff on disconnect.
     """
     if toolsets is None:
-        toolsets = ["terminal", "file", "web", "code"]
+        toolsets = ["terminal", "file", "web", "feishu_doc", "feishu_drive"]
     if hermes_home:
         os.environ["HERMES_HOME"] = hermes_home
 
@@ -258,7 +258,7 @@ async def run_agent_service(
                                     await handle_task(
                                         msg, ws, send, stream_callback,
                                         approval_callback, interrupt_flag,
-                                        group_id,
+                                        group_id, toolsets,
                                     )
                                 elif isinstance(msg, InterruptMessage):
                                     interrupt_flag.set()
@@ -301,6 +301,7 @@ async def handle_task(
     approval_callback,
     interrupt_flag: InterruptFlag,
     group_id: str,
+    toolsets: List[str],
 ) -> None:
     """Run the Hermes AIAgent in a thread pool executor for a single task."""
     from gateway.message_types import CompleteMessage, ErrorMessage
@@ -314,6 +315,39 @@ async def handle_task(
             if not hermes_home:
                 hermes_home = str(Path.home() / ".hermes")
                 os.environ["HERMES_HOME"] = hermes_home
+
+            # Inject Feishu client into tool thread-locals for feishu_doc/feishu_drive tools
+            # Use Hermes get_env_value() to read from .env file if not in os.environ
+            try:
+                from hermes_cli.config import get_env_value
+            except ImportError:
+                get_env_value = lambda k: os.environ.get(k, "")
+
+            feishu_app_id = get_env_value("FEISHU_APP_ID")
+            if feishu_app_id:
+                try:
+                    import lark_oapi as lark
+                    from lark_oapi.core.const import FEISHU_DOMAIN, LARK_DOMAIN
+                    from tools.feishu_doc_tool import set_client as set_doc_client
+                    from tools.feishu_drive_tool import set_client as set_drive_client
+
+                    domain = get_env_value("FEISHU_DOMAIN") or "feishu"
+                    domain_const = FEISHU_DOMAIN if domain != "lark" else LARK_DOMAIN
+                    client = (
+                        lark.Client.builder()
+                        .app_id(feishu_app_id)
+                        .app_secret(get_env_value("FEISHU_APP_SECRET") or "")
+                        .domain(domain_const)
+                        .log_level(lark.LogLevel.WARNING)
+                        .build()
+                    )
+                    set_doc_client(client)
+                    set_drive_client(client)
+                    logger.info("Injected Feishu client into tool thread-locals (app_id=%s)", feishu_app_id[:8])
+                except ImportError as e:
+                    logger.warning("lark_oapi not installed, skipping Feishu client injection: %s", e)
+                except Exception as e:
+                    logger.warning("Failed to inject Feishu client: %s", e)
 
             from run_agent import AIAgent
             from hermes_state import SessionDB
@@ -336,6 +370,7 @@ async def handle_task(
                 model=model,
                 session_db=session_db,
                 stream_delta_callback=stream_callback,
+                enabled_toolsets=toolsets,
             )
             result = agent.run_conversation(
                 user_message=task.message,
